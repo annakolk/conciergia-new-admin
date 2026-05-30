@@ -1,0 +1,522 @@
+<script setup>
+import { ref, reactive, watch, onMounted } from 'vue'
+import axios from 'axios'
+
+const STATUS_TABS = [
+  { label: 'All',      value: '' },
+  { label: 'Pending',  value: '1' },
+  { label: 'Approved', value: '2' },
+  { label: 'Declined', value: '3' },
+]
+
+const STATUS_LABELS = { '1': 'Pending', '2': 'Approved', '3': 'Declined' }
+const STATUS_CLASS  = { '1': 'chip-pending', '2': 'chip-approved', '3': 'chip-declined' }
+
+const loading     = ref(false)
+const error       = ref(null)
+const results     = ref([])
+const totalCount  = ref(0)
+const nextUrl     = ref(null)
+const prevUrl     = ref(null)
+const currentPage = ref(1)
+
+const filters = reactive({ status: '1', search: '', country: '' })
+let debounceTimer = null
+
+async function fetchCreators(url = null) {
+  loading.value = true
+  error.value = null
+  try {
+    let res
+    if (url) {
+      res = await axios.get(url)
+    } else {
+      const params = {}
+      if (filters.status)  params.status  = filters.status
+      if (filters.search)  params.search  = filters.search
+      if (filters.country) params.country = filters.country
+      res = await axios.get(`${import.meta.env.VITE_API_BASE}/users/influencer-list-admin/`, { params })
+    }
+    const data = res.data
+    if (Array.isArray(data)) {
+      results.value    = data
+      totalCount.value = data.length
+      nextUrl.value    = null
+      prevUrl.value    = null
+    } else {
+      results.value    = data.results  || []
+      totalCount.value = data.count    || 0
+      nextUrl.value    = data.next     || null
+      prevUrl.value    = data.previous || null
+    }
+  } catch {
+    error.value = 'Failed to load creator requests.'
+  } finally {
+    loading.value = false
+  }
+}
+
+function debounced() {
+  clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => { currentPage.value = 1; fetchCreators() }, 400)
+}
+
+function setStatus(val) {
+  filters.status = val
+  currentPage.value = 1
+  fetchCreators()
+}
+
+function goNext() { if (nextUrl.value) { currentPage.value++; fetchCreators(nextUrl.value) } }
+function goPrev() { if (prevUrl.value) { currentPage.value--; fetchCreators(prevUrl.value) } }
+
+function displayName(creator) {
+  const parts = [creator.creator_first_name, creator.creator_last_name].filter(Boolean)
+  return parts.length ? parts.join(' ') : '—'
+}
+
+function socialHandles(creator) {
+  return [
+    creator.instagram_handle && `IG: @${creator.instagram_handle}`,
+    creator.tiktok_handle    && `TT: @${creator.tiktok_handle}`,
+    creator.youtube_handle   && `YT: @${creator.youtube_handle}`,
+  ].filter(Boolean)
+}
+
+function formatDate(val) {
+  if (!val) return '—'
+  return new Date(val).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+watch(() => [filters.search, filters.country], debounced)
+onMounted(fetchCreators)
+</script>
+
+<template>
+  <div class="page">
+    <!-- Header -->
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">Creator Signup Requests</h2>
+        <p class="page-sub">Review and manage creator (influencer) registration submissions.</p>
+      </div>
+      <span class="total-badge">{{ totalCount }} total</span>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar">
+      <div class="status-tabs">
+        <button
+          v-for="tab in STATUS_TABS"
+          :key="tab.value"
+          class="tab-btn"
+          :class="{ active: filters.status === tab.value }"
+          @click="setStatus(tab.value)"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+
+      <div class="filter-inputs">
+        <div class="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input
+            v-model="filters.search"
+            type="text"
+            class="filter-input"
+            placeholder="Search name or email…"
+          />
+        </div>
+        <input
+          v-model="filters.country"
+          type="text"
+          class="filter-input country-input"
+          placeholder="Country…"
+        />
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div v-if="error" class="error-banner">{{ error }}</div>
+
+    <!-- Table -->
+    <div class="table-card">
+      <div v-if="loading" class="table-loading">
+        <div v-for="n in 6" :key="n" class="skeleton-row" />
+      </div>
+
+      <template v-else-if="results.length">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Creator</th>
+                <th>Email</th>
+                <th>Country</th>
+                <th>Socials</th>
+                <th>Submitted</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="creator in results" :key="creator.id">
+                <td>
+                  <div class="cell-primary">
+                    <div class="avatar creators-avatar">
+                      {{ displayName(creator)[0].toUpperCase() }}
+                    </div>
+                    <span>{{ displayName(creator) }}</span>
+                  </div>
+                </td>
+                <td class="cell-muted">{{ creator.email || '—' }}</td>
+                <td class="cell-muted">{{ creator.country || '—' }}</td>
+                <td>
+                  <div class="handles">
+                    <span v-for="h in socialHandles(creator)" :key="h" class="handle-tag">{{ h }}</span>
+                    <span v-if="!socialHandles(creator).length" class="cell-muted">—</span>
+                  </div>
+                </td>
+                <td class="cell-muted">{{ formatDate(creator.created_at) }}</td>
+                <td>
+                  <span class="status-chip" :class="STATUS_CLASS[String(creator.status)]">
+                    {{ STATUS_LABELS[String(creator.status)] || '—' }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div v-if="nextUrl || prevUrl" class="pagination">
+          <button class="page-btn" :disabled="!prevUrl" @click="goPrev">← Previous</button>
+          <span class="page-info">Page {{ currentPage }}</span>
+          <button class="page-btn" :disabled="!nextUrl" @click="goNext">Next →</button>
+        </div>
+      </template>
+
+      <div v-else class="empty-state">
+        <p class="empty-title">No results found</p>
+        <p class="empty-sub">Try adjusting your filters.</p>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Header ── */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.page-title {
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--black);
+  letter-spacing: -0.3px;
+}
+
+.page-sub {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-top: 4px;
+}
+
+.total-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700);
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  padding: 4px 12px;
+  border-radius: 100px;
+}
+
+/* ── Filters ── */
+.filters-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.status-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: 4px;
+}
+
+.tab-btn {
+  padding: 7px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-500);
+  background: transparent;
+  transition: all var(--transition);
+}
+
+.tab-btn:hover {
+  color: var(--black);
+  background: var(--gray-100);
+}
+
+.tab-btn.active {
+  background: var(--black);
+  color: var(--white);
+}
+
+.filter-inputs {
+  display: flex;
+  gap: 10px;
+}
+
+.search-wrap {
+  position: relative;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 15px;
+  color: var(--gray-500);
+  pointer-events: none;
+}
+
+.filter-input {
+  height: 38px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  font-size: 13px;
+  color: var(--black);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.search-wrap .filter-input {
+  padding: 0 14px 0 36px;
+  width: 240px;
+}
+
+.country-input {
+  padding: 0 14px;
+  width: 140px;
+}
+
+.filter-input::placeholder {
+  color: var(--gray-300);
+}
+
+.filter-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201, 164, 74, 0.1);
+}
+
+/* ── Error ── */
+.error-banner {
+  padding: 14px 18px;
+  background: rgba(192, 57, 43, 0.08);
+  border: 1px solid rgba(192, 57, 43, 0.25);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--red);
+}
+
+/* ── Table Card ── */
+.table-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* ── Skeleton ── */
+.table-loading {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeleton-row {
+  height: 52px;
+  background: var(--gray-100);
+  border-radius: var(--radius-md);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Table ── */
+.table-wrap {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table thead tr {
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.data-table th {
+  padding: 12px 20px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 13.5px;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tbody tr {
+  transition: background var(--transition);
+}
+
+.data-table tbody tr:hover {
+  background: var(--off-white);
+}
+
+.cell-primary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 500;
+  color: var(--black);
+}
+
+.cell-muted {
+  color: var(--gray-700);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.creators-avatar {
+  background: rgba(52, 152, 219, 0.12);
+  color: #1a6090;
+}
+
+/* ── Handles ── */
+.handles {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.handle-tag {
+  font-size: 11px;
+  color: var(--gray-700);
+  font-family: monospace;
+  white-space: nowrap;
+}
+
+/* ── Status Chips ── */
+.status-chip {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 100px;
+}
+
+.chip-pending  { background: rgba(230, 170, 50, 0.15);  color: #9b6e00; border: 1px solid rgba(230, 170, 50, 0.3); }
+.chip-approved { background: rgba(52, 152, 219, 0.12);  color: #1a6090; border: 1px solid rgba(52, 152, 219, 0.25); }
+.chip-declined { background: rgba(192, 57, 43, 0.10);   color: var(--red); border: 1px solid rgba(192, 57, 43, 0.2); }
+
+/* ── Empty ── */
+.empty-state {
+  padding: 64px 24px;
+  text-align: center;
+}
+
+.empty-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.empty-sub {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-top: 6px;
+}
+
+/* ── Pagination ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--gray-100);
+}
+
+.page-btn {
+  padding: 7px 16px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--white);
+  color: var(--black);
+  transition: all var(--transition);
+}
+
+.page-btn:hover:not(:disabled) {
+  border-color: var(--gold);
+  color: var(--gold-dark);
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-info {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+</style>
