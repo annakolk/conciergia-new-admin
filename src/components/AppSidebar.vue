@@ -168,10 +168,13 @@ function handleLogout() {
 .nav-section-label {
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: 1.8px;
   text-transform: uppercase;
-  color: var(--gray-700);
-  padding: 14px 14px 4px;
+  color: var(--gold);
+  opacity: 0.65;
+  padding: 18px 14px 5px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 4px;
 }
 
 .sidebar-footer {

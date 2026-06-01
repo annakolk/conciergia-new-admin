@@ -23,6 +23,26 @@ const currentPage = ref(1)
 const filters = reactive({ status: '1', search: '', country: '' })
 let debounceTimer = null
 
+const actioning = ref(new Set())
+
+async function updateStatus(brand, status) {
+  if (actioning.value.has(brand.id)) return
+  actioning.value = new Set([...actioning.value, brand.id])
+  try {
+    await axios.post(`${import.meta.env.VITE_API_BASE}/users/brand-signup-update/`, {
+      brand: brand.id,
+      status,
+    })
+    brand.status = status
+  } catch {
+    error.value = `Failed to ${status === '2' ? 'approve' : 'decline'} ${brand.email || 'brand'}.`
+  } finally {
+    const next = new Set(actioning.value)
+    next.delete(brand.id)
+    actioning.value = next
+  }
+}
+
 async function fetchBrands(url = null) {
   loading.value = true
   error.value = null
@@ -143,6 +163,7 @@ onMounted(fetchBrands)
                 <th>Country</th>
                 <th>Submitted</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -174,6 +195,25 @@ onMounted(fetchBrands)
                   <span class="status-chip" :class="STATUS_CLASS[String(brand.status)]">
                     {{ STATUS_LABELS[String(brand.status)] || '—' }}
                   </span>
+                </td>
+                <td>
+                  <div v-if="String(brand.status) === '1'" class="action-btns">
+                    <button
+                      class="action-btn btn-approve"
+                      :disabled="actioning.has(brand.id)"
+                      @click="updateStatus(brand, '2')"
+                    >
+                      {{ actioning.has(brand.id) ? '…' : 'Approve' }}
+                    </button>
+                    <button
+                      class="action-btn btn-decline"
+                      :disabled="actioning.has(brand.id)"
+                      @click="updateStatus(brand, '3')"
+                    >
+                      Decline
+                    </button>
+                  </div>
+                  <span v-else class="cell-muted">—</span>
                 </td>
               </tr>
             </tbody>
@@ -467,6 +507,49 @@ onMounted(fetchBrands)
 .chip-pending  { background: rgba(230, 170, 50, 0.15);  color: #9b6e00; border: 1px solid rgba(230, 170, 50, 0.3); }
 .chip-approved { background: rgba(52, 152, 219, 0.12);  color: #1a6090; border: 1px solid rgba(52, 152, 219, 0.25); }
 .chip-declined { background: rgba(192, 57, 43, 0.10);   color: var(--red); border: 1px solid rgba(192, 57, 43, 0.2); }
+
+/* ── Action buttons ── */
+.action-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.action-btn {
+  padding: 5px 12px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-approve {
+  background: rgba(39, 174, 96, 0.1);
+  color: #1a7a42;
+  border: 1px solid rgba(39, 174, 96, 0.35);
+}
+
+.btn-approve:hover:not(:disabled) {
+  background: rgba(39, 174, 96, 0.2);
+  border-color: rgba(39, 174, 96, 0.6);
+}
+
+.btn-decline {
+  background: rgba(192, 57, 43, 0.08);
+  color: var(--red);
+  border: 1px solid rgba(192, 57, 43, 0.25);
+}
+
+.btn-decline:hover:not(:disabled) {
+  background: rgba(192, 57, 43, 0.15);
+  border-color: rgba(192, 57, 43, 0.45);
+}
 
 /* ── Empty ── */
 .empty-state {
