@@ -16,6 +16,28 @@ const nextUrl     = ref(null)
 const prevUrl     = ref(null)
 const currentPage = ref(1)
 
+const tokenLoading = reactive(new Set())
+const tokenModal   = ref({ show: false, email: '', token: '', copied: false })
+
+async function getToken(user) {
+  if (tokenLoading.has(user.id)) return
+  tokenLoading.add(user.id)
+  try {
+    const res = await axios.post(`${import.meta.env.VITE_API_BASE}/users/admin/get-user-token/`, { user_id: user.id })
+    tokenModal.value = { show: true, email: res.data.email || user.email, token: res.data.token, copied: false }
+  } catch {
+    error.value = 'Failed to retrieve token for this user.'
+  } finally {
+    tokenLoading.delete(user.id)
+  }
+}
+
+function copyToken() {
+  navigator.clipboard.writeText(tokenModal.value.token)
+  tokenModal.value.copied = true
+  setTimeout(() => { tokenModal.value.copied = false }, 2000)
+}
+
 const filters = reactive({
   search:              '',
   country:             '',
@@ -178,6 +200,7 @@ onMounted(fetchBrands)
                 <th>Country</th>
                 <th>Flags</th>
                 <th>Joined</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -212,6 +235,15 @@ onMounted(fetchBrands)
                   </div>
                 </td>
                 <td class="cell-muted">{{ formatDate(brand.created_at) }}</td>
+                <td>
+                  <button
+                    class="token-btn"
+                    :disabled="tokenLoading.has(brand.id)"
+                    @click="getToken(brand)"
+                  >
+                    {{ tokenLoading.has(brand.id) ? '…' : 'Get token' }}
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -228,6 +260,23 @@ onMounted(fetchBrands)
       <div v-else class="empty-state">
         <p class="empty-title">No brands found</p>
         <p class="empty-sub">Try adjusting your filters.</p>
+      </div>
+    </div>
+
+    <!-- Token modal -->
+    <div v-if="tokenModal.show" class="modal-backdrop" @click.self="tokenModal.show = false">
+      <div class="modal">
+        <div class="modal-header">
+          <span class="modal-title">Auth Token</span>
+          <button class="modal-close" @click="tokenModal.show = false">✕</button>
+        </div>
+        <p class="modal-email">{{ tokenModal.email }}</p>
+        <div class="token-box">
+          <code class="token-text">{{ tokenModal.token }}</code>
+        </div>
+        <button class="copy-btn" @click="copyToken">
+          {{ tokenModal.copied ? 'Copied!' : 'Copy token' }}
+        </button>
       </div>
     </div>
   </div>
@@ -598,5 +647,115 @@ onMounted(fetchBrands)
 .page-info {
   font-size: 13px;
   color: var(--gray-500);
+}
+
+/* ── Get Token button ── */
+.token-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.token-btn:hover:not(:disabled) {
+  border-color: var(--gold);
+  color: var(--gold-dark);
+}
+
+.token-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Token modal ── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  width: 480px;
+  max-width: calc(100vw - 32px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--black);
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  color: var(--gray-500);
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+}
+
+.modal-close:hover { color: var(--black); }
+
+.modal-email {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin: -8px 0;
+}
+
+.token-box {
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  overflow-x: auto;
+}
+
+.token-text {
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--black);
+  word-break: break-all;
+}
+
+.copy-btn {
+  align-self: flex-end;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--gold-dark);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.copy-btn:hover {
+  background: rgba(201, 164, 74, 0.08);
 }
 </style>
