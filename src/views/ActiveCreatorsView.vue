@@ -117,6 +117,29 @@ function formatDate(val) {
   return new Date(val).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+const exporting = ref(false)
+
+async function exportCSV() {
+  exporting.value = true
+  try {
+    const params = {}
+    if (filters.country)                    params.country          = filters.country
+    if (filters.enabled !== '')             params.enabled          = filters.enabled
+    if (filters.verified_account !== '')    params.verified_account = filters.verified_account
+    const res = await axios.get(`${import.meta.env.VITE_API_BASE}/users/admin/export/creators/`, { params, responseType: 'blob' })
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'creators.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    error.value = 'Failed to export CSV.'
+  } finally {
+    exporting.value = false
+  }
+}
+
 watch(() => [filters.search, filters.country], debounced)
 watch(() => filters.ordering, () => { currentPage.value = 1; fetchCreators() })
 onMounted(fetchCreators)
@@ -130,7 +153,12 @@ onMounted(fetchCreators)
         <h2 class="page-title">Active Creators</h2>
         <p class="page-sub">All registered creator accounts on the platform.</p>
       </div>
-      <span class="total-badge">{{ totalCount }} creators</span>
+      <div class="header-actions">
+        <span class="total-badge">{{ totalCount }} creators</span>
+        <button class="export-btn" :disabled="exporting" @click="exportCSV">
+          {{ exporting ? 'Exporting…' : 'Export CSV' }}
+        </button>
+      </div>
     </div>
 
     <!-- Filters -->
@@ -300,6 +328,12 @@ onMounted(fetchCreators)
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .page-title {
@@ -647,6 +681,30 @@ onMounted(fetchCreators)
 .page-info {
   font-size: 13px;
   color: var(--gray-500);
+}
+
+/* ── Export CSV button ── */
+.export-btn {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.export-btn:hover:not(:disabled) {
+  border-color: var(--gold);
+  color: var(--gold-dark);
+}
+
+.export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── Get Token button ── */

@@ -142,6 +142,32 @@ function toSub(r) {
   return r.request_to_creator_name || r.request_to_brand_name ? r.request_to_email : null
 }
 
+const exporting = ref(false)
+
+async function exportCSV() {
+  exporting.value = true
+  try {
+    const params = {}
+    if (filters.status)                     params.status         = filters.status
+    if (filters.request_type)               params.request_type   = filters.request_type
+    if (filters.order_status)               params.order_status   = filters.order_status
+    if (filters.gifting_choice !== '')      params.gifting_choice = filters.gifting_choice
+    if (filters.start_date)                 params.start_date     = filters.start_date
+    if (filters.end_date)                   params.end_date       = filters.end_date
+    const res = await axios.get(`${import.meta.env.VITE_API_BASE}/users/admin/export/requests/`, { params, responseType: 'blob' })
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'requests.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    error.value = 'Failed to export CSV.'
+  } finally {
+    exporting.value = false
+  }
+}
+
 watch(() => [filters.search, filters.start_date, filters.end_date], debounced)
 watch(() => [filters.request_type, filters.order_status, filters.gifting_choice, filters.ordering], () => {
   currentPage.value = 1
@@ -158,7 +184,12 @@ onMounted(fetchRequests)
         <h2 class="page-title">Gifting Requests</h2>
         <p class="page-sub">Brand–Creator gifting and collaboration requests.</p>
       </div>
-      <span class="total-badge">{{ totalCount }} total</span>
+      <div class="header-actions">
+        <span class="total-badge">{{ totalCount }} total</span>
+        <button class="export-btn" :disabled="exporting" @click="exportCSV">
+          {{ exporting ? 'Exporting…' : 'Export CSV' }}
+        </button>
+      </div>
     </div>
 
     <!-- Status tabs -->
@@ -355,6 +386,12 @@ onMounted(fetchRequests)
   justify-content: space-between;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .page-title {
   font-family: var(--font-heading);
   font-size: 22px;
@@ -377,6 +414,29 @@ onMounted(fetchRequests)
   border: 1px solid var(--gray-200);
   padding: 4px 12px;
   border-radius: 100px;
+}
+
+.export-btn {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.export-btn:hover:not(:disabled) {
+  border-color: var(--gold);
+  color: var(--gold-dark);
+}
+
+.export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── Filters ── */

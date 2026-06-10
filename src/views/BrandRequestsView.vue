@@ -95,6 +95,27 @@ function formatDate(val) {
   return new Date(val).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+const exporting = ref(false)
+
+async function exportCSV() {
+  exporting.value = true
+  try {
+    const params = {}
+    if (filters.status) params.status = filters.status
+    const res = await axios.get(`${import.meta.env.VITE_API_BASE}/users/admin/export/temp-brands/`, { params, responseType: 'blob' })
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'temp_brands.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    error.value = 'Failed to export CSV.'
+  } finally {
+    exporting.value = false
+  }
+}
+
 watch(() => [filters.search, filters.country], debounced)
 onMounted(fetchBrands)
 </script>
@@ -107,7 +128,12 @@ onMounted(fetchBrands)
         <h2 class="page-title">Brand Signup Requests</h2>
         <p class="page-sub">Review and manage brand registration submissions.</p>
       </div>
-      <span class="total-badge">{{ totalCount }} total</span>
+      <div class="header-actions">
+        <span class="total-badge">{{ totalCount }} total</span>
+        <button class="export-btn" :disabled="exporting" @click="exportCSV">
+          {{ exporting ? 'Exporting…' : 'Export CSV' }}
+        </button>
+      </div>
     </div>
 
     <!-- Filters -->
@@ -250,6 +276,12 @@ onMounted(fetchBrands)
   justify-content: space-between;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .page-title {
   font-family: var(--font-heading);
   font-size: 22px;
@@ -272,6 +304,29 @@ onMounted(fetchBrands)
   border: 1px solid var(--gray-200);
   padding: 4px 12px;
   border-radius: 100px;
+}
+
+.export-btn {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--white);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.export-btn:hover:not(:disabled) {
+  border-color: var(--gold);
+  color: var(--gold-dark);
+}
+
+.export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── Filters ── */
