@@ -1,6 +1,9 @@
 <script setup>
 import { ref, reactive, watch, onMounted } from 'vue'
 import axios from 'axios'
+import { useToast } from '@/composables/useToast'
+
+const toast = useToast()
 
 const STATUS_TABS = [
   { label: 'All',      value: '' },
@@ -26,7 +29,7 @@ let debounceTimer = null
 const actioning = ref(new Set())
 
 async function updateStatus(creator, status) {
-  if (actioning.value.has(creator.id)) return
+  if (actioning.value.has(creator.id)) return false
   actioning.value = new Set([...actioning.value, creator.id])
   try {
     await axios.post(`${import.meta.env.VITE_API_BASE}/users/influencer-status-update-admin/`, {
@@ -34,12 +37,25 @@ async function updateStatus(creator, status) {
       status,
     })
     creator.status = status
+    return true
   } catch {
     error.value = `Failed to ${status === '2' ? 'approve' : 'decline'} ${creator.email || 'creator'}.`
+    return false
   } finally {
     const next = new Set(actioning.value)
     next.delete(creator.id)
     actioning.value = next
+  }
+}
+
+async function resendSetPasswordLink(creator) {
+  const ok = await updateStatus(creator, '2')
+  const who = creator.email || 'this creator'
+  if (ok) {
+    toast.success('Set password link sent', `A new link has been emailed to ${who}.`)
+  } else {
+    error.value = null
+    toast.error('Couldn’t resend link', `Failed to send the set password link to ${who}. Please try again.`)
   }
 }
 
@@ -246,6 +262,14 @@ onMounted(fetchCreators)
                       Decline
                     </button>
                   </div>
+                  <button
+                    v-else-if="String(creator.status) === '2'"
+                    class="action-btn btn-resend"
+                    :disabled="actioning.has(creator.id)"
+                    @click="resendSetPasswordLink(creator)"
+                  >
+                    {{ actioning.has(creator.id) ? 'Sending…' : 'Resend set password link' }}
+                  </button>
                   <span v-else class="cell-muted">—</span>
                 </td>
               </tr>
@@ -601,6 +625,17 @@ onMounted(fetchCreators)
 .btn-decline:hover:not(:disabled) {
   background: rgba(192, 57, 43, 0.15);
   border-color: rgba(192, 57, 43, 0.45);
+}
+
+.btn-resend {
+  background: var(--white);
+  color: var(--gray-700);
+  border: 1px solid var(--gray-200);
+}
+
+.btn-resend:hover:not(:disabled) {
+  border-color: var(--gold);
+  color: var(--gold-dark);
 }
 
 /* ── Empty ── */

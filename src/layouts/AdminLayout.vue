@@ -1,6 +1,7 @@
 <script setup>
 import AppSidebar from '@/components/AppSidebar.vue'
 import AppHeader from '@/components/AppHeader.vue'
+import AppToast from '@/components/AppToast.vue'
 </script>
 
 <template>
@@ -12,6 +13,7 @@ import AppHeader from '@/components/AppHeader.vue'
         <RouterView />
       </main>
     </div>
+    <AppToast />
   </div>
 </template>
 
