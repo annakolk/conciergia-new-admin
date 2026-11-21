@@ -52,11 +52,49 @@ async function resendSetPasswordLink(creator) {
   const ok = await updateStatus(creator, '2')
   const who = creator.email || 'this creator'
   if (ok) {
+    creator.last_email_sent = new Date().toISOString()
     toast.success('Set password link sent', `A new link has been emailed to ${who}.`)
   } else {
     error.value = null
     toast.error('Couldn’t resend link', `Failed to send the set password link to ${who}. Please try again.`)
   }
+}
+
+// last_email_sent may be a date only ("2026-11-21") or a full datetime
+const isDateOnly = val => typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)
+
+function formatSentAgo(val) {
+  if (!val) return ''
+  if (isDateOnly(val)) {
+    const [y, m, d] = val.split('-').map(Number)
+    const sent  = new Date(y, m - 1, d)
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const days  = Math.round((today - sent) / 86400000)
+    if (days <= 0) return 'today'
+    if (days === 1) return 'yesterday'
+    if (days < 7)  return `${days} days ago`
+    return 'on ' + sent.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+  const diff = Math.max(0, Date.now() - new Date(val).getTime())
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1)  return 'just now'
+  if (mins < 60) return `${mins} min${mins === 1 ? '' : 's'} ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24)  return `${hrs} hr${hrs === 1 ? '' : 's'} ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7)  return `${days} day${days === 1 ? '' : 's'} ago`
+  return 'on ' + new Date(val).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function formatSentExact(val) {
+  if (!val) return ''
+  if (isDateOnly(val)) {
+    const [y, m, d] = val.split('-').map(Number)
+    return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+  return new Date(val).toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
 }
 
 async function fetchCreators(url = null) {
@@ -262,14 +300,22 @@ onMounted(fetchCreators)
                       Decline
                     </button>
                   </div>
-                  <button
-                    v-else-if="String(creator.status) === '2'"
-                    class="action-btn btn-resend"
-                    :disabled="actioning.has(creator.id)"
-                    @click="resendSetPasswordLink(creator)"
-                  >
-                    {{ actioning.has(creator.id) ? 'Sending…' : 'Resend set password link' }}
-                  </button>
+                  <div v-else-if="String(creator.status) === '2'" class="resend-wrap">
+                    <button
+                      class="action-btn btn-resend"
+                      :disabled="actioning.has(creator.id)"
+                      @click="resendSetPasswordLink(creator)"
+                    >
+                      {{ actioning.has(creator.id) ? 'Sending…' : 'Resend set password link' }}
+                    </button>
+                    <span
+                      v-if="creator.last_email_sent"
+                      class="resend-meta"
+                      :title="formatSentExact(creator.last_email_sent)"
+                    >
+                      Last sent {{ formatSentAgo(creator.last_email_sent) }}
+                    </span>
+                  </div>
                   <span v-else class="cell-muted">—</span>
                 </td>
               </tr>
@@ -625,6 +671,20 @@ onMounted(fetchCreators)
 .btn-decline:hover:not(:disabled) {
   background: rgba(192, 57, 43, 0.15);
   border-color: rgba(192, 57, 43, 0.45);
+}
+
+.resend-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.resend-meta {
+  font-size: 11px;
+  color: var(--gray-500);
+  white-space: nowrap;
+  cursor: default;
 }
 
 .btn-resend {
