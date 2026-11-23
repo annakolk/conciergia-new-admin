@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, watch, onMounted } from 'vue'
 import axios from 'axios'
+import CreatorSocialsModal from '@/components/CreatorSocialsModal.vue'
 
 const ORDERING_OPTIONS = [
   { label: 'Newest first', value: '-created_at' },
@@ -110,6 +111,13 @@ function socialHandles(c) {
     c.tiktok_handle    && `TT: @${c.tiktok_handle}`,
     c.youtube_handle   && `YT: @${c.youtube_handle}`,
   ].filter(Boolean)
+}
+
+const editingCreator = ref(null)
+
+function onSocialsUpdated(u) {
+  const row = results.value.find(c => c.id === u.id)
+  if (row) Object.assign(row, u)
 }
 
 function formatDate(val) {
@@ -257,9 +265,12 @@ onMounted(fetchCreators)
                 <td class="cell-muted">{{ creator.email || '—' }}</td>
                 <td class="cell-muted">{{ creator.country || '—' }}</td>
                 <td>
-                  <div class="handles">
-                    <span v-for="h in socialHandles(creator)" :key="h" class="handle-tag">{{ h }}</span>
-                    <span v-if="!socialHandles(creator).length" class="cell-muted">—</span>
+                  <div class="socials-cell">
+                    <div class="handles">
+                      <span v-for="h in socialHandles(creator)" :key="h" class="handle-tag">{{ h }}</span>
+                      <span v-if="!socialHandles(creator).length" class="cell-muted">—</span>
+                    </div>
+                    <button class="edit-socials-btn" @click="editingCreator = creator">Edit</button>
                   </div>
                 </td>
                 <td>
@@ -297,6 +308,15 @@ onMounted(fetchCreators)
         <p class="empty-sub">Try adjusting your filters.</p>
       </div>
     </div>
+
+    <!-- Edit socials modal -->
+    <CreatorSocialsModal
+      v-if="editingCreator"
+      :key="editingCreator.id"
+      :creator="editingCreator"
+      @close="editingCreator = null"
+      @updated="onSocialsUpdated"
+    />
 
     <!-- Token modal -->
     <div v-if="tokenModal.show" class="modal-backdrop" @click.self="tokenModal.show = false">
@@ -602,6 +622,30 @@ onMounted(fetchCreators)
   display: flex;
   flex-direction: column;
   gap: 3px;
+}
+
+.socials-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.edit-socials-btn {
+  padding: 2px 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.edit-socials-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold-dark);
 }
 
 .handle-tag {
