@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, watch, onMounted } from 'vue'
 import axios from 'axios'
-import CreatorSocialsModal from '@/components/CreatorSocialsModal.vue'
+import CreatorEditModal from '@/components/CreatorEditModal.vue'
 
 const ORDERING_OPTIONS = [
   { label: 'Newest first', value: '-created_at' },
@@ -265,12 +265,9 @@ onMounted(fetchCreators)
                 <td class="cell-muted">{{ creator.email || '—' }}</td>
                 <td class="cell-muted">{{ creator.country || '—' }}</td>
                 <td>
-                  <div class="socials-cell">
-                    <div class="handles">
-                      <span v-for="h in socialHandles(creator)" :key="h" class="handle-tag">{{ h }}</span>
-                      <span v-if="!socialHandles(creator).length" class="cell-muted">—</span>
-                    </div>
-                    <button class="edit-socials-btn" @click="editingCreator = creator">Edit</button>
+                  <div class="handles">
+                    <span v-for="h in socialHandles(creator)" :key="h" class="handle-tag">{{ h }}</span>
+                    <span v-if="!socialHandles(creator).length" class="cell-muted">—</span>
                   </div>
                 </td>
                 <td>
@@ -282,13 +279,16 @@ onMounted(fetchCreators)
                 </td>
                 <td class="cell-muted">{{ formatDate(creator.created_at) }}</td>
                 <td>
-                  <button
-                    class="token-btn"
-                    :disabled="tokenLoading.has(creator.id)"
-                    @click="getToken(creator)"
-                  >
-                    {{ tokenLoading.has(creator.id) ? '…' : 'Get token' }}
-                  </button>
+                  <div class="row-actions">
+                    <button class="token-btn" @click="editingCreator = creator">Edit</button>
+                    <button
+                      class="token-btn"
+                      :disabled="tokenLoading.has(creator.id)"
+                      @click="getToken(creator)"
+                    >
+                      {{ tokenLoading.has(creator.id) ? '…' : 'Get token' }}
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -309,8 +309,8 @@ onMounted(fetchCreators)
       </div>
     </div>
 
-    <!-- Edit socials modal -->
-    <CreatorSocialsModal
+    <!-- Edit creator modal (socials + tags) -->
+    <CreatorEditModal
       v-if="editingCreator"
       :key="editingCreator.id"
       :creator="editingCreator"
@@ -624,28 +624,9 @@ onMounted(fetchCreators)
   gap: 3px;
 }
 
-.socials-cell {
+.row-actions {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.edit-socials-btn {
-  padding: 2px 10px;
-  font-size: 11.5px;
-  font-weight: 500;
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-sm);
-  background: var(--white);
-  color: var(--gray-700);
-  cursor: pointer;
-  transition: all var(--transition);
-  white-space: nowrap;
-}
-
-.edit-socials-btn:hover {
-  border-color: var(--gold);
-  color: var(--gold-dark);
+  gap: 6px;
 }
 
 .handle-tag {
